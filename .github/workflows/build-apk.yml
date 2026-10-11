@@ -32,37 +32,45 @@ jobs:
       - name: Set up Android SDK
         uses: android-actions/setup-android@v4
 
-      - name: Install Android SDK packages
+      - name: Install Android SDK
         run: |
           sdkmanager --install "platform-tools" "platforms;android-35" "build-tools;35.0.0"
 
-      - name: Check project structure
+      - name: Check project files
         run: |
+          pwd
           ls -la
           test -f settings.gradle
           test -f build.gradle
           test -f app/build.gradle
           test -f app/src/main/AndroidManifest.xml
 
-      - name: Build APK and save logs
+      - name: Build APK
+        id: build
+        continue-on-error: true
         shell: bash
         run: |
-          set -o pipefail
-          gradle --no-daemon --stacktrace assembleDebug 2>&1 | tee build.log
+          gradle --no-daemon --stacktrace assembleDebug > build.log 2>&1
+          result=$?
+          cat build.log
+          exit "$result"
+
+      - name: Upload build log
+        if: steps.build.outcome == 'failure'
+        uses: actions/upload-artifact@v5
+        with:
+          name: jarvis-build-error-log
+          path: build.log
+          if-no-files-found: warn
+
+      - name: Stop if build failed
+        if: steps.build.outcome == 'failure'
+        run: exit 1
 
       - name: Upload APK
-        if: success()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: jarvis-debug-apk
           path: app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
-
-      - name: Upload error log
-        if: failure()
-        uses: actions/upload-artifact@v4
-        with:
-          name: jarvis-build-error-log
-          path: build.log
-          if-no-files-found: ignore
           
